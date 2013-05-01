@@ -1,0 +1,24 @@
+<?php
+
+/**
+ * @file
+ * Install and uninstall functions for the userpoints_flag module.
+ */
+
+/**
+ * Implements hook_install().
+ */
+function userpoints_flag_install() {
+  drupal_set_message(st('User Points Flag API has been successfully installed.'));
+  drupal_set_message(st('You can configure the User Points Flag API module on the <a href="@url">User Points settings page</a>.', array('@url' => url('admin/config/people/userpoints/settings'))));
+}
+
+
+/**
+ * Implements hook_uninstall().
+ */
+function userpoints_flag_uninstall() {
+  db_delete('variable')
+    ->condition('name', '%userpoints_flag%', 'LIKE')
+    ->execute();
+}

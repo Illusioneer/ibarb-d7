@@ -1,0 +1,62 @@
+<?php
+
+/**
+ * @file Rules Panes main functions.
+ */
+
+/**
+ * Implements hook_ctools_plugin_directory().
+ */
+function rules_panes_ctools_plugin_directory($owner, $plugin_type) {
+  if ($owner == 'ctools' && $plugin_type == 'content_types') {
+    return 'plugins/content_types';
+  }
+}
+
+
+
+/**
+ * Converts a Rules/Entity API data type name to a CTools context name.
+ * @param $rules_type_name
+ *   The name of a data type in the Rules/Entity API universe, such as
+ *   'text'.
+ * @return
+ *   The corresponding name for a CTools context, such as 'string', or FALSE if
+ *   no correspondance is found.
+ */
+function rules_panes_convert_rules2ctools($rules_type_name) {
+  $names = rules_panes_convert_type_names();
+  if (isset($names[$rules_type_name])) {
+    return $names[$rules_type_name];
+  }
+  return FALSE;
+}
+
+/**
+ * Converts a CTools context name to a Rules/Entity API data type name.
+ * @param $ctools_context_name
+ *   The name of a CTools context, such as 'string'.
+ * @return
+ *   The corresponding name for a Rules/Entity API data type, such as 'text', or
+ *   FALSE if no correspondance if found.
+ */
+function rules_panes_convert_ctools2rules($ctools_context_name) {
+  $names = rules_panes_convert_type_names();
+  return array_search($ctools_context_name, $names);
+}
+
+/**
+ * A helper function to convert between data type names in Rules/Entity API and
+ * CTools contexts.
+ * @return
+ *   An array where the keys are the Rules/Entity API names, and the values are
+ *   the corresponding names of the CTools contexts.
+ */
+function rules_panes_convert_type_names() {
+  return array(
+    'taxonomy_term' => 'taxonomy_term',
+    'node' => 'node',
+    'user' => 'user',
+    'text' => 'string',
+  );
+}

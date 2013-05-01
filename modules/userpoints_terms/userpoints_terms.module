@@ -1,0 +1,320 @@
+<?php
+
+/**
+ * @file
+ * Gives users points for creating tags on nodes.
+ */
+
+/**
+ * Get all node terms (tid) by nid.
+ */
+function userpoints_node_get_terms($nid) {
+  $tids = array();
+  $result = db_select('taxonomy_index', 'ti')
+   ->fields('ti', array('tid'))
+   ->condition('ti.nid', $nid)
+   ->orderBy('ti.tid', 'ASC')
+   ->execute();
+   foreach ($result as $term) {
+    $tids[] = $term->tid;
+   }
+  return $tids;
+}
+/**
+ * Get node terms and terms owner (uid) by nid.
+ */
+function userpoints_terms_get_user_terms($nid) {
+  $user_terms = array();
+  $result = db_select('userpoints_terms', 'ta')
+   ->fields('ta', array('tid', 'uid'))
+   ->condition('ta.nid', $nid)
+   ->execute();
+   foreach ($result as $term) {
+    if (isset($term->uid)) {
+     $user_terms[$term->uid][] = $term->tid;
+    }
+   }
+  return $user_terms;
+}
+/**
+ * Implements hook_node_insert().
+ */
+function userpoints_terms_node_insert($node) {
+  // Check for userpoints_terms module settings.
+  $points = variable_get('userpoints_terms_node_terms_points');
+  $category = variable_get('userpoints_terms_terms_category');
+  if ($points && $category && variable_get('userpoints_terms_enabled')) {
+   // Get all saved terms by node nid.
+   $tids = userpoints_node_get_terms($node->nid);
+   if (count($tids) > 0) {
+    $params = array(
+     'points'  => ($points * count($tids)),
+     'tid'     => $category,
+     'uid'       => $node->uid,
+     'operation'   => 'userpoints_terms_node_insert',
+     'entity_id'    => $node->nid,
+     'entity_type'  => 'node_term'
+    );
+    // Give user points.
+    userpoints_userpointsapi($params);
+    // Save terms and owner. 
+    $query = db_insert('userpoints_terms')->fields(array('nid', 'uid', 'tid', 'timestamp'));
+    foreach ($tids as $tid) {
+     $query->values(array(
+      'nid' => $node->nid,
+      'uid' => $node->uid,
+      'tid' => $tid,
+      'timestamp' => $node->created,
+      )
+     );
+    }
+   $query->execute();
+  }
+ }
+}
+function userpoints_terms_node_presave($node) {
+  // Get saved terms, before node has been updated.
+  $get_node_terms = userpoints_node_get_terms($node->nid);
+  if (count($get_node_terms) > 0) {
+  $node->user_terms = $get_node_terms;
+  }
+}
+/**
+ * Implements hook_node_update().
+ */
+
+function userpoints_terms_node_update($node) {
+  // Check for userpoints_terms module settings.
+  $points = variable_get('userpoints_terms_node_terms_points');
+  $category = variable_get('userpoints_terms_terms_category');
+  if ($points && $category && variable_get('userpoints_terms_enabled')) {
+   // Get all node terms, after node has been updated.
+   $get_node_terms = userpoints_node_get_terms($node->nid);
+   // Get all node terms users, after node has been updated.
+   $get_user_terms = userpoints_terms_get_user_terms($node->nid);
+   // Check, if terms has been deleted.
+   $terms_has_been_deleted = array_diff($node->user_terms, $get_node_terms);
+   // Check, if terms has been added.
+   $terms_has_been_added = array_diff($get_node_terms, $node->user_terms);
+   if (is_array($get_user_terms)) {
+    foreach ($get_user_terms as $uid => $terms) {
+     $i = 0;
+     foreach ($terms as $term) {
+      if (in_array($term, $terms_has_been_deleted)) {
+       db_delete('userpoints_terms')
+       ->condition('tid', $term)
+       ->execute();
+       $i++;
+      }
+     }
+      if ($i > 0) {
+       $params = array(
+        'points'  => -($points * $i),
+        'tid'     => $category,
+        'uid'       => $uid,
+        'operation'   => 'userpoints_terms_node_update',
+        'entity_id'    => $node->nid,
+        'entity_type'  => 'node_term'
+        );
+       userpoints_userpointsapi($params);
+      }
+     }
+    }
+    if (count($terms_has_been_added) > 0) {
+     global $user;
+     $params = array(
+      'points'  => ($points * count($terms_has_been_added)),
+      'tid'     => $category,
+      'uid'       => $user->uid,
+      'operation'   => 'userpoints_terms_node_update',
+      'entity_id'    => $node->nid,
+      'entity_type'  => 'node_term'
+     );
+     userpoints_userpointsapi($params);
+     $query = db_insert('userpoints_terms')->fields(array('nid', 'uid', 'tid', 'timestamp'));
+     foreach ($terms_has_been_added as $tid) {
+      $query->values(array(
+       'nid' => $node->nid,
+       'uid' => $user->uid,
+       'tid' => $tid,
+       'timestamp' => $node->changed,
+       )
+      );
+     }
+     $query->execute();/**/
+    }
+  }
+}
+/**
+ * Implements hook_node_delete().
+ */
+function userpoints_terms_node_delete($node) {
+  // Check for userpoints_terms module settings.
+  $points = variable_get('userpoints_terms_node_terms_points');
+  $category = variable_get('userpoints_terms_terms_category');
+  if ($points && $category && variable_get('userpoints_terms_enabled')) {
+   // Get saved terms by user and node id.
+   $user_tags = userpoints_terms_get_user_terms($node->nid);
+   if (count($user_tags) > 0) {
+    foreach ($user_tags as $user => $tags) {
+     // Remove points by user
+     $params = array(
+      'points'  => -($points * count($tags)),
+      'tid'     => $category,
+      'uid'       => $user,
+      'operation'   => 'userpoints_terms_node_delete',
+      'entity_id'    => $node->nid,
+      'entity_type'  => 'node_term'
+     );
+     userpoints_userpointsapi($params);
+    }
+    // Remove all user terms by node id.
+    db_delete('userpoints_terms')
+    ->condition('nid', $node->nid)
+    ->execute();
+  }
+ }
+}
+
+function userpoints_get_term_owner($term) {
+  $result = db_select('taxonomy_term_owner', 'ti')
+   ->fields('ti', array('uid'))
+   ->condition('tid', $term->tid)
+   ->range(0, 1)
+   ->execute()
+   ->fetchField();
+  return $result;
+}
+/**
+ * Implements hook_taxonomy_term_insert().
+ */
+function userpoints_terms_taxonomy_term_insert($term) {
+  // Check for userpoints_terms module settings.
+  $points = variable_get('userpoints_terms_node_terms_points');
+  $category = variable_get('userpoints_terms_terms_category');
+  if ($points && $category && variable_get('userpoints_terms_enabled')) {
+    // Get current user id.
+    global $user;
+    // Build query array.
+    $params = array(
+      'points'  => $points,
+      'tid'     => $category,
+      'uid'       => $user->uid,
+      'operation'   => 'userpoints_terms_taxonomy_term_insert',
+      'entity_id'    => $term->tid,
+      'entity_type'  => 'term'
+    );
+    // Save points for new created term.
+    userpoints_userpointsapi($params);
+    // Save term owner.
+    if (isset($term->tid, $user->uid)) {
+     if ($user->uid > 0) {
+     db_insert('taxonomy_term_owner')
+     ->fields(array(
+      'tid' => $term->tid, 
+      'uid' => $user->uid,
+      )
+     )
+     ->execute();
+   }
+  }
+ }
+}
+/**
+ * Implements hook_taxonomy_term_delete().
+ */
+function userpoints_terms_taxonomy_term_delete($term) {
+  // Check for userpoints_terms module settings.
+  $points = variable_get('userpoints_terms_node_terms_points');
+  $category = variable_get('userpoints_terms_terms_category');
+  if ($points && $category && variable_get('userpoints_terms_enabled')) {
+    // Get term owner
+    $uid = userpoints_get_term_owner($term);
+    if (is_numeric($uid)) {
+     $params = array(
+      'points'  => $points,
+      'tid'     => $category,
+      'uid'       => $uid,
+      'operation'   => 'userpoints_terms_taxonomy_term_delete',
+      'entity_id'    => $term->tid,
+      'entity_type'  => 'term'
+    );
+    userpoints_userpointsapi($params); 
+    // Delete term owner
+    if (isset($term->tid)) {
+     db_delete('taxonomy_term_owner')
+     ->condition('tid', $term->tid)
+     ->execute();
+     }
+    }
+  }
+}
+
+function userpoints_terms_user_delete($account) {
+  if (isset($account->uid)) {
+   db_delete('taxonomy_term_owner')
+   ->condition('uid', $account->uid)
+   ->execute();
+ }
+}
+
+function userpoints_terms_userpoints($op, $params = array()) {
+  switch ($op) {
+   case 'setting':
+    $form['userpoints_terms'] = array(
+     '#type'        => 'fieldset',
+     '#collapsible' => TRUE,
+     '#collapsed'   => TRUE,
+     '#title'       => t('Node terms'),
+     '#group'       => 'settings_additional',
+     '#weight'      => 25,
+    );
+    $form['userpoints_terms']['userpoints_terms_enabled'] = array(
+     '#type' => 'checkbox',
+     '#title' => t('Enabled'),
+     '#default_value' => variable_get('userpoints_terms_enabled'),
+     '#description' => t('If checked, !points are awarded for new terms.', userpoints_translation()),
+    );
+    $form['userpoints_terms']['userpoints_terms_terms_points'] = array(
+     '#type'          => 'textfield',
+     '#title'         => t('!Points for new terms', userpoints_translation()),
+     '#description'   => t('Set the number of !points to be awarded when a user create new terms.', userpoints_translation()),
+     '#default_value' => variable_get('userpoints_terms_terms_points'),
+     '#size'          => 5,
+     '#maxlength'     => 5,
+     '#states' => array(
+     'visible' => array(
+      ':input[name="userpoints_terms_enabled"]' => array('checked' => TRUE),
+      ),
+     ),
+    );
+    $form['userpoints_terms']['userpoints_terms_node_terms_points'] = array(
+     '#type'          => 'textfield',
+     '#title'         => t('!Points for new node terms', userpoints_translation()),
+     '#description'   => t('Set the number of !points to be awarded when a user adds a new term to node.', userpoints_translation()),
+     '#default_value' => variable_get('userpoints_terms_node_terms_points'),
+     '#size'          => 5,
+     '#maxlength'     => 5,
+     '#states' => array(
+     'visible' => array(
+      ':input[name="userpoints_terms_enabled"]' => array('checked' => TRUE),
+      ),
+     ),
+    );
+    $form['userpoints_terms']['userpoints_terms_terms_category'] = array(
+     '#type'          => 'select',
+     '#title'         => t('Default !points category for node terms', userpoints_translation()),
+     '#description'   => t('Choose the category of !points to be used by default when a user adds a terms to nodes. This can be overridden for each content type.', userpoints_translation()),
+     '#options'       => userpoints_get_categories(),
+     '#default_value' => variable_get('userpoints_terms_terms_category'),
+     '#states' => array(
+     'visible' => array(
+      ':input[name="userpoints_terms_enabled"]' => array('checked' => TRUE),
+      ),
+     ),
+    );
+   return $form;
+  break;
+ }
+}
+

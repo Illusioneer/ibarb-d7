@@ -1,0 +1,58 @@
+<?php
+
+/**
+ * @file
+ * Create DB schema for Userpoints Tags Module.
+ */
+function userpoints_terms_schema() {
+  $schema = array();
+
+  $schema['userpoints_terms'] = array(
+  'description' => 'Records userpoints node tags',
+    'fields' => array(
+      'id'        => array('type' => 'serial',  'length' => '10', 'unsigned' => TRUE, 'not null' => TRUE ),
+      'uid'       => array('type' => 'int',     'length' => '10', 'unsigned' => TRUE, 'default' => NULL, ),
+      'nid'       => array('type' => 'int',     'length' => '10', 'unsigned' => TRUE, 'default' => NULL, ),
+      'tid'       => array('type' => 'int',     'length' => '10', 'unsigned' => TRUE, 'default' => NULL, ),
+      'timestamp' => array('type' => 'int',     'length' => '11',                     'default' => NULL ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'nid' => array('nid'),
+    ),
+    'foreign keys' => array(
+      'tracked_node' => array(
+        'table' => 'node',
+        'columns' => array('nid' => 'nid'),
+      ),
+      'term' => array(
+        'table' => 'taxonomy_term_data',
+        'columns' => array('tid' => 'tid'),
+      ),
+    ),
+  );
+  $schema['taxonomy_term_owner'] = array(
+    'description' => 'Taxonomy terms created by user.',
+    'fields' => array(
+      'id' => array(
+        'type' => 'serial',
+        'length' => '11',
+        'description' => 'auto_increment id field.',
+        'not null' => TRUE,
+      ),
+      'tid' => array(
+        'type' => 'int',
+        'length' => '11',
+        'description' => 'Taxonomy term id.',
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'length' => '11',
+        'description' => 'User id.',
+      ),
+    ),
+    'primary key' => array('id'),
+  );
+
+  return $schema;
+}

@@ -1,0 +1,13 @@
+name = Rules Panes
+description = Allows Rules components to be exposed as CTools content panes
+package = Rules
+core = 7.x
+dependencies[] = rules
+dependencies[] = ctools
+
+; Information added by drupal.org packaging script on 2013-03-08
+version = "7.x-1.0"
+core = "7.x"
+project = "rules_panes"
+datestamp = "1362783895"
+

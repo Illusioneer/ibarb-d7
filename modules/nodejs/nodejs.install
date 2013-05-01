@@ -1,0 +1,89 @@
+<?php
+
+/**
+ * @file
+ * Install, update and uninstall functions for the nodejs module.
+ */
+
+/**
+ * Implements hook_uninstall().
+ */
+function nodejs_uninstall() {
+  variable_del('nodejs_server_scheme');
+  variable_del('nodejs_server_host');
+  variable_del('nodejs_server_port');
+}
+
+/**
+ * Implements hook_schema().
+ */
+function nodejs_schema() {
+  return array(
+    'nodejs_presence' => array(
+      'description' => 'List of currently online users on a node.js server.',
+      'fields' => array(
+        'uid' => array(
+          'description' => 'The uid of the user.',
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+        'login_time' => array(
+          'description' => 'The timestamp of when the user came online.',
+          'type' => 'int',
+          'unsigned' => TRUE,
+          'not null' => TRUE,
+          'default' => 0,
+        ),
+      ),
+      'indexes' => array(
+        'login_time' => array('login_time'),
+      ),
+      'unique keys' => array(
+        'uid' => array('uid'),
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_requirements()
+ */
+function nodejs_requirements($phase) {
+  if ($phase == 'runtime') {
+
+    $result = array();
+    $requirements['nodejs'] = array(
+      'title' => t('Node.js'),
+      'description' => t('Can Drupal connect to the Node.js server?'),
+    );
+
+    // Initiate a call to the Nodejs server
+    // and react to the response.
+    $message = new StdClass;
+    $response = Nodejs::sendMessage($message);
+
+    // drupal_http_request does the work for us so we just check to see
+    // if it is an error or not and report back
+    // $response->error: If an error occurred, the error message. Otherwise not set. 
+    if (isset($response->error)) {
+      $result = array(
+        'value' => check_plain($response->error),
+        'severity' => REQUIREMENT_ERROR,
+      );
+    }
+    else {
+      $result = array(
+        'value' => check_plain($response->status_message),
+        'severity' => REQUIREMENT_OK,
+      );
+    }
+
+    // Merge the result from Nodejs
+    $requirements['nodejs'] += $result;
+
+  return $requirements;
+  }
+}
+
