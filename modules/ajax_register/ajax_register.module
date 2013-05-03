@@ -125,7 +125,7 @@ function ajax_register_block_view() {
     }
 
     // Include css and js for modal dialog.
-    _ajax_register_include_modal();
+    //_ajax_register_include_modal();
 
     // Add a links to the block.
     $block['content'] = array(
