@@ -1,0 +1,96 @@
+<?php
+/**
+ * @file
+ * Provides a "bridge" between the message module and the jGrowl notification
+ * functionality provided by the nodeJS integration module.
+ */
+
+/**
+ * Implements hook_permission().
+ *
+ * We're setting a simple permission to allow users to recieve notifications.
+ */
+function messagejs_permission() {
+  return array(
+    'receive messagejs notifications' => array(
+      'title' => t('Receive MessageJS Notifications'),
+    ),
+    'administer messagejs' => array(
+      'title' => t('Administer MessageJS Notification Setting'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_nodejs_user_channels().
+ *
+ * Checking the user being authorized against our defined permission.
+ */
+function messagejs_nodejs_user_channels($auth_user) {
+  $channels = array();
+  if (user_access('receive messagejs notifications', $auth_user)) {
+    $channels[] = 'messagejs_general';
+  }
+  return $channels;
+}
+
+/**
+ * Implements hook_form_message_type_form_alter().
+ *
+ * See message.api.php found in the message module folder.
+ * We're injecting our broadcast setting into the pre-defined data tree array in
+ * the message type form.  This insures our form data gets carried along with
+ * the rest of the message type settings.
+ */
+function messagejs_form_message_type_form_alter(&$form, &$form_state) {
+  if (user_access('administer messagejs')) {
+    $form['data']['nodejs'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('NodeJS Notifications'),
+    );
+    $form['data']['nodejs']['broadcast'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('Broadcast Message'),
+      '#description' => t('Allow this message to be broadcast with NodeJS notifications.'),
+      '#default_value' => isset($form_state['build_info']['args'][0]->data['nodejs']) ? $form_state['build_info']['args'][0]->data['nodejs']['broadcast'] : FALSE,
+    );
+  }
+}
+
+/**
+ * Implements hook_entity_insert().
+ *
+ * We're looking for 'message' entity types that are being inserted.  This
+ * indicates that a message event has occured, so we render the entity, and pass
+ * it along.
+ */
+function messagejs_entity_insert($entity, $type) {
+  if ($type == 'message') {
+    // Load the message type and check broadcast settings.
+    $message_type = message_type_load($entity->type);
+    if ($message_type->data['nodejs']['broadcast'] == TRUE) {
+      // Build the render array, and send our message.
+      field_attach_prepare_view('message', array($entity->mid => $entity), 'full');
+      $message = render($entity->buildContent());
+      messagejs_send_message($message);
+    }
+  }
+}
+
+/**
+ * A small helper function to build and send our message object.
+ *
+ * @param <string> $body
+ *   The body of our message.
+ * @param <string> $subject
+ *   An optional message subject.
+ */
+function messagejs_send_message($body, $subject = '') {
+  $notification = new stdClass();
+  $notification->channel = 'messagejs_general';
+  $notification->data['subject'] = $subject;
+  $notification->data['body'] = $body;
+  $notification->callback = 'nodejsNotify';
+
+  nodejs_send_message($notification);
+}

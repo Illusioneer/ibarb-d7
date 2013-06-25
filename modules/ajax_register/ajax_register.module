@@ -341,8 +341,8 @@ function _ajax_register_execute_form($form_type, $form_state) {
       elseif ($redirect_behavior == 'default' || $redirect_behavior == 'custom') {
         $message .= 'Page will now be redirected.';
       }
-      drupal_set_message(check_plain(t($message)));
-      $commands[] = ctools_modal_command_display($title, theme('status_messages'));
+      //drupal_set_message(check_plain(t($message)));
+     // $commands[] = ctools_modal_command_display($title, theme('status_messages'));
       break;
   }
 

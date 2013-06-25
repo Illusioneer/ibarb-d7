@@ -1,0 +1,156 @@
+<?php
+
+/**
+ * @file
+ * nodejs_chat module.
+ * Simple chat block using NodeJS on the backend.
+ */
+
+/* Return value for failed channel creations. */
+define('NODEJS_CHAT_CHANNEL_CREATION_FAILED', 0);
+
+/* Return value for successful channel creations. */
+define('NODEJS_CHAT_CHANNEL_CREATION_SUCCESS', 1);
+
+/* Return value when channel creation fails because channel already exists. */
+define('NODEJS_CHAT_CHANNEL_CREATION_CHANNEL_EXISTS', 2);
+
+/**
+ * Implements hook_menu().
+ */
+function nodejs_chat_menu() {
+  $items = array();
+  $items['nodejs-chat/%user/%user'] = array(
+    'title' => 'User to user chat',
+    'page callback' => 'nodejs_chat_chatwindow',
+    'page arguments' => array(1, 2),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  $items['nodejs-chat/message/post/%'] = array(
+    'page callback' => 'nodejs_chat_chatwindow_post',
+    'page arguments' => array(3),
+    'access callback' => TRUE,
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function nodejs_chat_block_info() {
+  $blocks['nodejs_chat'] = array(
+    'info' => 'Node JS Chat Block',
+    'cache' => DRUPAL_NO_CACHE,
+  );
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function nodejs_chat_block_view($delta = '') {
+  switch ($delta) {
+    case 'nodejs_chat':
+      global $user;
+      if (!$user->uid) return;
+      $path = current_path();
+      $chat = new Chat($path);
+
+      $block['subject'] = t('Chat');
+      $block['content'] = $chat->render();
+    break;
+  }
+  return $block;
+}
+
+/**
+ * Posts a message to a socket.io channel (chatwindow)
+ */
+function nodejs_chat_chatwindow_post($chatwindow) {
+  // No message, no party
+  if (!isset($_POST['message'])) {
+    drupal_json_output(array('data' => array('accessDenied' => 'invalid')));
+    drupal_exit();
+  }
+
+  global $user;
+
+  $message = (object) array(
+    'channel' => $chatwindow,
+    'callback' => 'nodejsChatMessageHandler',
+    'data' => array(
+      'uid' => $user->uid,
+      'name' => $user->name,
+      'msg' => $_POST['message'],
+    ),
+  );
+  nodejs_send_content_channel_message($message);
+  drupal_json_output(array('data' => array('accessGranted' => 'Message ok')));
+  drupal_exit();
+}
+
+/**
+ *
+ */
+function nodejs_chat_create_chat($channel) {
+  if (!is_null($channel)) {
+    $chat = new Chat($channel);
+  }
+  return $chat;
+}
+
+/**
+ * Add a channel to the Node.js server.
+ *
+ * This is a replacement for the nodejs_get_add_channel() function.
+ * That function doesn't return exact data about what's happened on the channel
+ * creation, and returns TRUE even if the channel hasn't been created (no matter
+ * the reason).
+ *
+ * This function returns reliable info about the Node JS server response. Using
+ * it for now, but this should be fixed in the nodejs module, and removed from
+ * here afterwards.
+ *
+ * TODO: Remove this and replace any calls to this after the fix is in the
+ * nodejs module.
+ *
+ * @param channel
+ * @return boolean
+ */
+function nodejs_chat_add_channel($channel) {
+  $response = Nodejs::addChannel($channel);
+  if (isset($response->error)) {
+    return NODEJS_CHAT_CHANNEL_CREATION_FAILED;
+  }
+
+  $response_data = json_decode($response->data);
+
+  if (isset($response_data->error)) {
+    // Store the error in the log.
+    watchdog('nodejs', t('Error adding channel to the Node.js server: [%code] %error', array('%code' => $response->code, '%error' => $response_data->error)));
+
+    // This is awkward as hell, but needs to be improved in the nodejs module.
+    if (strstr($response_data->error, 'already exists')) {
+      return NODEJS_CHAT_CHANNEL_CREATION_CHANNEL_EXISTS;
+    }
+    return NODEJS_CHAT_CHANNEL_CREATION_FAILED;
+  }
+  else {
+    return NODEJS_CHAT_CHANNEL_CREATION_SUCCESS;
+  }
+}
+
+/**
+ * Implements hook_theme().
+ */
+function nodejs_chat_theme() {
+  return array(
+    'nodejs_chat_users' => array(
+      'variables' => array('user_ids' => array()),
+      'file' => 'theme.inc',
+      'path' => drupal_get_path('module', 'nodejs_chat') . '/theme',
+    ),
+  );
+}
