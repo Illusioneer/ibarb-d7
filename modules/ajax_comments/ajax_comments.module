@@ -195,7 +195,7 @@ function ajax_comments_submit_js($form, &$form_state) {
   // will appear upon refresh. This seems dirty but it means we don't have to
   // rewrite the whole comment_form_submit(). Please chime in if you think this
   // is dumb.
-  ajax_comments_remove_status($_SESSION);
+  ajax_comments_remove_status();
 
   $comment = $form_state['comment'];
   $node = $form['#node'];
@@ -264,7 +264,7 @@ function ajax_comments_submit_js($form, &$form_state) {
 function ajax_comments_delete_js($form, &$form_state) {
   $comment = $form['#comment'];
 
-  ajax_comments_remove_status($_SESSION);
+  ajax_comments_remove_status();
 
   $notify_text = variable_get('ajax_comments_notify', '') ? theme('ajax_comments_notify_text', array('type' => 'delete')) : '';
 
@@ -500,15 +500,10 @@ function ajax_comments_delete($cid) {
  * Removes "Your comment has been posted." or "Your comment has been queued.."
  *   from the status message.
  */
-function ajax_comments_remove_status(&$_SESSION) {
+function ajax_comments_remove_status() {
   $deleted = t('The comment and all its replies have been deleted.');
   $published = t('Your comment has been posted.');
   $not_published = t('Your comment has been queued for review by site administrators and will be published after approval.');
-  foreach ($_SESSION['messages']['status'] as $key => $value) {
-    if ($value == $published || $value == $not_published || $value = $deleted) {
-      unset($_SESSION['messages']['status']);
-    }
-  }
 }
 
 /**
