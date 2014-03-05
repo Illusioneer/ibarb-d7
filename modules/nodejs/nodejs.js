@@ -81,8 +81,8 @@ Drupal.Nodejs.runSetupHandlers = function (type) {
 };
 
 Drupal.Nodejs.connect = function () {
-  var scheme = Drupal.settings.nodejs.secure ? 'https' : 'http',
-      url = scheme + '://' + Drupal.settings.nodejs.host + ':' + Drupal.settings.nodejs.port;
+  var scheme = Drupal.settings.nodejs.client.secure ? 'https' : 'http',
+      url = scheme + '://' + Drupal.settings.nodejs.client.host + ':' + Drupal.settings.nodejs.client.port;
   Drupal.settings.nodejs.connectTimeout = Drupal.settings.nodejs.connectTimeout || 5000;
   if (typeof io === 'undefined') {
      return false;

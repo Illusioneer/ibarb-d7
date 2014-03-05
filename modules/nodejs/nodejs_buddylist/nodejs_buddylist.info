@@ -6,9 +6,9 @@ core = 7.x
 dependencies[] = nodejs
 dependencies[] = flag_friend
 
-; Information added by drupal.org packaging script on 2013-04-25
-version = "7.x-1.2"
+; Information added by Drupal.org packaging script on 2014-02-10
+version = "7.x-1.7+2-dev"
 core = "7.x"
 project = "nodejs"
-datestamp = "1366879212"
+datestamp = "1392046712"
 
